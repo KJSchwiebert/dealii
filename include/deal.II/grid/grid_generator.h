@@ -2665,6 +2665,37 @@ namespace GridGenerator
     const bool                       colorize = false);
 
   /**
+   * Create a coordinate-parallel brick from the two diagonally opposite
+   * corner points @p p1 and @p p2 and subdivide each cell into simplices.
+   *
+   * The number of vertices in coordinate
+   * direction @p i is given by <tt>repetitions[i]+1</tt>.
+   *
+   * @note This function takes the mesh produced by subdivided_hyper_rectangle()
+   * and further subdivides each cell into 2 triangles (for @p dim 2) or
+   * 6 tetrahedra (for @p dim 3), respectively.
+   *
+   * For @p dim 2, this function behaves exactly as the function with the same
+   * name but without `_periodic` appended. For @p dim 3, this function instead
+   * creates 6 tetrahedra per hexahedral cell. This is done so that the faces
+   * on the boundaries can be matched with the function
+   * `GridTools::collect_periodic_faces`.
+   *
+   * @note Currently, this function only works for `dim==spacedim`.
+   *
+   * Also see
+   * @ref simplex "Simplex support".
+   */
+  template <int dim, int spacedim>
+  void
+  subdivided_hyper_rectangle_with_simplices_periodic(
+    Triangulation<dim, spacedim>    &tria,
+    const std::vector<unsigned int> &repetitions,
+    const Point<dim>                &p1,
+    const Point<dim>                &p2,
+    const bool                       colorize = false);
+
+  /**
    * Initialize the given triangulation with a hypercube (square in 2d and
    * cube in 3d) consisting of @p repetitions cells in each direction with
    * each cell divided into simplices.
