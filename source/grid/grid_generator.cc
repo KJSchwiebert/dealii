@@ -9169,14 +9169,14 @@ namespace GridGenerator
                 // TET cell 1
                 {
                   CellData<dim> cell;
-                  cell.vertices = {{quad[0], quad[1], quad[5], quad[7]}};
+                  cell.vertices = {{quad[0], quad[1], quad[7], quad[5]}};
                   cells.push_back(cell);
                 }
 
                 // TET cell 2
                 {
                   CellData<dim> cell;
-                  cell.vertices = {{quad[0], quad[2], quad[3], quad[7]}};
+                  cell.vertices = {{quad[0], quad[2], quad[7], quad[3]}};
                   cells.push_back(cell);
                 }
 
@@ -9197,7 +9197,7 @@ namespace GridGenerator
                 // TET cell 5
                 {
                   CellData<dim> cell;
-                  cell.vertices = {{quad[0], quad[4], quad[6], quad[7]}};
+                  cell.vertices = {{quad[0], quad[4], quad[7], quad[6]}};
                   cells.push_back(cell);
                 }
               }

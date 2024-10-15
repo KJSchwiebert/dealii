@@ -2433,17 +2433,13 @@ namespace GridTools
     Assert(matrix.m() == matrix.n(),
            ExcMessage("The supplied matrix must be a square matrix"));
 
-    static const int dim = FaceIterator::AccessorType::dimension;
+    // static const int dim = FaceIterator::AccessorType::dimension;
 
     // Do a full matching of the face vertices:
-
-    std::array<unsigned int, GeometryInfo<dim>::vertices_per_face>
-      face1_vertices, face2_vertices;
-
-    face1_vertices.fill(numbers::invalid_unsigned_int);
-    face2_vertices.fill(numbers::invalid_unsigned_int);
-
     AssertDimension(face1->n_vertices(), face2->n_vertices());
+
+    std::vector<unsigned int> face1_vertices(face1->n_vertices(),0),
+                              face2_vertices(face2->n_vertices(),0);
 
     std::set<unsigned int> face2_vertices_set;
     for (unsigned int i = 0; i < face1->n_vertices(); ++i)
