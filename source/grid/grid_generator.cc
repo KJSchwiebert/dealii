@@ -9162,7 +9162,7 @@ namespace GridGenerator
                 // TET cell 0
                 {
                   CellData<dim> cell;
-                  cell.vertices = {{quad[0], quad[1], quad[3], quad[7]}};
+                  cell.vertices = {{quad[7], quad[3], quad[0], quad[1]}};
                   cells.push_back(cell);
                 }
 
