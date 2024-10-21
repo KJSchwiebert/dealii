@@ -159,6 +159,14 @@ public:
                          const unsigned int codim) const override;
 
   /**
+   * @copydoc dealii::FiniteElement::face_to_cell_index()
+   */
+  virtual unsigned int
+  face_to_cell_index(const unsigned int  face_index,
+                     const unsigned int  face,
+                     const unsigned char combined_orientation) const override;
+
+  /**
    * @copydoc dealii::FiniteElement::hp_vertex_dof_identities()
    */
   std::vector<std::pair<unsigned int, unsigned int>>
