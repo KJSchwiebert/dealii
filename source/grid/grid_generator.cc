@@ -2145,7 +2145,7 @@ namespace GridGenerator
   template <>
   void
   parallelogram(Triangulation<3> &,
-                const Point<3> (& /*corners*/)[3],
+                const Point<3> (&/*corners*/)[3],
                 const bool /*colorize*/)
   {
     DEAL_II_NOT_IMPLEMENTED();
@@ -2154,7 +2154,7 @@ namespace GridGenerator
   template <>
   void
   parallelogram(Triangulation<1> &,
-                const Point<1> (& /*corners*/)[1],
+                const Point<1> (&/*corners*/)[1],
                 const bool /*colorize*/)
   {
     DEAL_II_NOT_IMPLEMENTED();
@@ -5093,7 +5093,7 @@ namespace GridGenerator
     // cells
     const unsigned int n_vertices           = 16;
     const Point<3>     vertices[n_vertices] = {
-      // first the vertices of the inner
+          // first the vertices of the inner
       // cell
       p + Point<3>(-1, -1, -1) * (radius / std::sqrt(3.0) * a),
       p + Point<3>(+1, -1, -1) * (radius / std::sqrt(3.0) * a),
@@ -5119,13 +5119,13 @@ namespace GridGenerator
     // understand what's going on here
     const unsigned int n_cells                   = 7;
     const int          cell_vertices[n_cells][8] = {
-      {0, 1, 4, 5, 3, 2, 7, 6},      // center
-      {8, 9, 12, 13, 0, 1, 4, 5},    // bottom
-      {9, 13, 1, 5, 10, 14, 2, 6},   // right
-      {11, 10, 3, 2, 15, 14, 7, 6},  // top
-      {8, 0, 12, 4, 11, 3, 15, 7},   // left
-      {8, 9, 0, 1, 11, 10, 3, 2},    // front
-      {12, 4, 13, 5, 15, 7, 14, 6}}; // back
+               {0, 1, 4, 5, 3, 2, 7, 6},      // center
+               {8, 9, 12, 13, 0, 1, 4, 5},    // bottom
+               {9, 13, 1, 5, 10, 14, 2, 6},   // right
+               {11, 10, 3, 2, 15, 14, 7, 6},  // top
+               {8, 0, 12, 4, 11, 3, 15, 7},   // left
+               {8, 9, 0, 1, 11, 10, 3, 2},    // front
+               {12, 4, 13, 5, 15, 7, 14, 6}}; // back
 
     std::vector<CellData<3>> cells(n_cells, CellData<3>());
 
@@ -6002,12 +6002,12 @@ namespace GridGenerator
 
         const unsigned int n_cells                   = 6;
         const int          cell_vertices[n_cells][8] = {
-          {8, 9, 10, 11, 0, 1, 2, 3},    // bottom
-          {9, 11, 1, 3, 13, 15, 5, 7},   // right
-          {12, 13, 4, 5, 14, 15, 6, 7},  // top
-          {8, 0, 10, 2, 12, 4, 14, 6},   // left
-          {8, 9, 0, 1, 12, 13, 4, 5},    // front
-          {10, 2, 11, 3, 14, 6, 15, 7}}; // back
+                   {8, 9, 10, 11, 0, 1, 2, 3},    // bottom
+                   {9, 11, 1, 3, 13, 15, 5, 7},   // right
+                   {12, 13, 4, 5, 14, 15, 6, 7},  // top
+                   {8, 0, 10, 2, 12, 4, 14, 6},   // left
+                   {8, 9, 0, 1, 12, 13, 4, 5},    // front
+                   {10, 2, 11, 3, 14, 6, 15, 7}}; // back
 
         cells.resize(n_cells, CellData<3>());
 
@@ -8395,8 +8395,6 @@ namespace GridGenerator
   alfeld_split_of_simplex_mesh(const Triangulation<dim, spacedim> &in_tria,
                                Triangulation<dim, spacedim>       &out_tria)
   {
-    Assert(dim == 2, ExcNotImplemented());
-
     Triangulation<dim, spacedim> temp_tria;
     if (in_tria.n_global_levels() > 1)
       {
@@ -8415,6 +8413,26 @@ namespace GridGenerator
     static const ndarray<unsigned int, 4, 2, 2>
       vertex_ids_for_boundary_faces_2d = {
         {{{{{0, 1}}}}, {{{{1, 2}}}}, {{{{2, 0}}}}}};
+
+    // Three tetrahedra connecting to barycenter with vertex index 4:
+    static const ndarray<unsigned int, 4, 4> table_3D_cell = {
+      {{{0, 1, 2, 4}}, {{1, 0, 3, 4}}, {{0, 2, 3, 4}}, {{2, 1, 3, 4}}}};
+
+    // Boundary-faces 3d:
+    // Each face of the original simplex is defined by the following vertices:
+    static const ndarray<unsigned int, 4, 2, 3>
+      vertex_ids_for_boundary_faces_3d = {
+        {{{{{0, 1, 2}}}}, {{{{1, 0, 3}}}}, {{{{0, 2, 3}}}}, {{{{2, 1, 3}}}}}};
+
+    // Boundary-lines 3d:
+    // Each face of the original simplex is defined by the following vertices:
+    static const ndarray<unsigned int, 6, 2, 2>
+      vertex_ids_for_boundary_lines_3d = {{{{{{0, 1}}}},
+                                           {{{{1, 2}}}},
+                                           {{{{2, 0}}}},
+                                           {{{{0, 3}}}},
+                                           {{{{1, 3}}}},
+                                           {{{{2, 3}}}}}};
 
     std::vector<Point<spacedim>> vertices;
     std::vector<CellData<dim>>   cells;
@@ -8440,7 +8458,8 @@ namespace GridGenerator
 
         // temporary array storing the global indices of each cell entity in the
         // sequence: vertices, edges/faces, cell
-        std::array<unsigned int, 4> local_vertex_indices;
+        std::array<unsigned int, 5> local_vertex_indices;
+        const unsigned int          n_total_vertices = dim == 2 ? 4 : 5;
 
         // (i) copy the existing vertex locations
         Point<spacedim> barycenter;
@@ -8455,14 +8474,14 @@ namespace GridGenerator
                 vertices.push_back(cell->vertex(v));
               }
 
-            AssertIndexRange(v, local_vertex_indices.size());
+            AssertIndexRange(v, n_total_vertices);
             local_vertex_indices[v] = old_to_new_vertex_indices[v_global];
 
             barycenter += vertices[local_vertex_indices[v]] - Point<spacedim>();
           }
 
         // (ii) barycenter:
-        local_vertex_indices[3] = vertices.size();
+        local_vertex_indices[n_total_vertices - 1] = vertices.size();
         vertices.push_back(barycenter / 3.);
 
         // helper function for creating cells and subcells
@@ -8484,8 +8503,7 @@ namespace GridGenerator
               CellData<dim> cell_data(index_vertices.size());
               for (unsigned int i = 0; i < index_vertices.size(); ++i)
                 {
-                  AssertIndexRange(index_vertices[i],
-                                   local_vertex_indices.size());
+                  AssertIndexRange(index_vertices[i], n_total_vertices);
                   cell_data.vertices[i] =
                     local_vertex_indices[index_vertices[i]];
                 }
@@ -8502,8 +8520,7 @@ namespace GridGenerator
               boundary_line.manifold_id = manifold_id;
               for (unsigned int i = 0; i < index_vertices.size(); ++i)
                 {
-                  AssertIndexRange(index_vertices[i],
-                                   local_vertex_indices.size());
+                  AssertIndexRange(index_vertices[i], n_total_vertices);
                   boundary_line.vertices[i] =
                     local_vertex_indices[index_vertices[i]];
                 }
@@ -8517,8 +8534,7 @@ namespace GridGenerator
               boundary_quad.manifold_id = manifold_id;
               for (unsigned int i = 0; i < index_vertices.size(); ++i)
                 {
-                  AssertIndexRange(index_vertices[i],
-                                   local_vertex_indices.size());
+                  AssertIndexRange(index_vertices[i], n_total_vertices);
                   boundary_quad.vertices[i] =
                     local_vertex_indices[index_vertices[i]];
                 }
@@ -8532,8 +8548,7 @@ namespace GridGenerator
               boundary_line.manifold_id = manifold_id;
               for (unsigned int i = 0; i < index_vertices.size(); ++i)
                 {
-                  AssertIndexRange(index_vertices[i],
-                                   local_vertex_indices.size());
+                  AssertIndexRange(index_vertices[i], n_total_vertices);
                   boundary_line.vertices[i] =
                     local_vertex_indices[index_vertices[i]];
                 }
@@ -8556,6 +8571,14 @@ namespace GridGenerator
             for (const auto &cell_vertices : table_2D_cell)
               add_cell(dim, cell_vertices, material_id_cell, manifold_id_cell);
           }
+        else if (dim == 3)
+          {
+            // get cell-manifold id from current quad cell
+            const auto manifold_id_cell = cell->manifold_id();
+
+            for (const auto &cell_vertices : table_3D_cell)
+              add_cell(dim, cell_vertices, material_id_cell, manifold_id_cell);
+          }
         else
           DEAL_II_NOT_IMPLEMENTED();
 
@@ -8572,8 +8595,28 @@ namespace GridGenerator
                      vertex_ids_for_boundary_faces_2d[f])
                   add_cell(1, face_vertices, bid, mid);
               }
+            else if (dim == 3)
+              {
+                for (const auto &face_vertices :
+                     vertex_ids_for_boundary_faces_3d[f])
+                  add_cell(2, face_vertices, bid, mid);
+              }
             else
               DEAL_II_NOT_IMPLEMENTED();
+          }
+
+        // In 3D we need to treat boundary lines seperately.
+        if (dim == 3)
+          {
+            for (const auto l : cell->line_indices())
+              {
+                const auto bid = cell->line(l)->boundary_id();
+                const auto mid = cell->line(l)->manifold_id();
+
+                for (const auto &line_vertices :
+                     vertex_ids_for_boundary_lines_3d[l])
+                  add_cell(1, line_vertices, bid, mid);
+              }
           }
       }
 
