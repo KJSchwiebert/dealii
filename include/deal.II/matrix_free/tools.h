@@ -1374,7 +1374,11 @@ namespace MatrixFreeTools
   } // namespace internal
 
 
-  template <int dim, int fe_degree, typename Number, typename QuadOperation>
+  template <int dim,
+            int fe_degree,
+            int n_q_points_1d,
+            typename Number,
+            typename QuadOperation>
   class CellAction
   {
   public:
@@ -1393,7 +1397,7 @@ namespace MatrixFreeTools
                const Number *,
                Number *dst) const
     {
-      Portable::FEEvaluation<dim, fe_degree, fe_degree + 1, 1, Number> fe_eval(
+      Portable::FEEvaluation<dim, fe_degree, n_q_points_1d, 1, Number> fe_eval(
         gpu_data, shared_data);
       m_quad_operation.set_matrix_free_data(*gpu_data);
       m_quad_operation.set_cell(cell);
@@ -1404,6 +1408,8 @@ namespace MatrixFreeTools
           Kokkos::parallel_for(
             Kokkos::TeamThreadRange(shared_data->team_member, dofs_per_cell),
             [&](int j) { fe_eval.submit_dof_value(i == j ? 1 : 0, j); });
+
+          shared_data->team_member.team_barrier();
 
           Portable::internal::
             resolve_hanging_nodes<dim, fe_degree, false, Number>(
@@ -1425,12 +1431,16 @@ namespace MatrixFreeTools
 
           Kokkos::single(Kokkos::PerTeam(shared_data->team_member),
                          [&] { diagonal[i] = fe_eval.get_dof_value(i); });
+
+          shared_data->team_member.team_barrier();
         }
 
       Kokkos::single(Kokkos::PerTeam(shared_data->team_member), [&] {
         for (unsigned int i = 0; i < dofs_per_cell; ++i)
           fe_eval.submit_dof_value(diagonal[i], i);
       });
+
+      shared_data->team_member.team_barrier();
 
       // We need to do the same as distribute_local_to_global but without
       // constraints since we have already taken care of them earlier
@@ -1455,6 +1465,7 @@ namespace MatrixFreeTools
     };
 
     static constexpr unsigned int n_local_dofs = QuadOperation::n_local_dofs;
+    static constexpr unsigned int n_q_points   = QuadOperation::n_q_points;
 
   private:
     mutable QuadOperation                  m_quad_operation;
@@ -1490,8 +1501,8 @@ namespace MatrixFreeTools
     matrix_free.initialize_dof_vector(diagonal_global);
 
 
-    CellAction<dim, fe_degree, Number, QuadOperation> cell_action(
-      quad_operation, evaluation_flags, integration_flags);
+    CellAction<dim, fe_degree, n_q_points_1d, Number, QuadOperation>
+      cell_action(quad_operation, evaluation_flags, integration_flags);
     LinearAlgebra::distributed::Vector<Number, MemorySpace> dummy;
     matrix_free.cell_loop(cell_action, dummy, diagonal_global);
 
@@ -1696,7 +1707,8 @@ namespace MatrixFreeTools
       };
 
     data_cell.op_reinit = [](auto &phi, const unsigned batch) {
-      static_cast<FEEvalType &>(*phi[0]).reinit(batch);
+      if (phi.size() == 1)
+        static_cast<FEEvalType &>(*phi[0]).reinit(batch);
     };
 
     if (cell_operation)
@@ -1757,8 +1769,11 @@ namespace MatrixFreeTools
       };
 
     data_face.op_reinit = [](auto &phi, const unsigned batch) {
-      static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
-      static_cast<FEFaceEvalType &>(*phi[1]).reinit(batch);
+      if (phi.size() == 2)
+        {
+          static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
+          static_cast<FEFaceEvalType &>(*phi[1]).reinit(batch);
+        }
     };
 
     if (face_operation)
@@ -1797,7 +1812,8 @@ namespace MatrixFreeTools
     };
 
     data_boundary.op_reinit = [](auto &phi, const unsigned batch) {
-      static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
+      if (phi.size() == 1)
+        static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
     };
 
     if (boundary_operation)
@@ -2213,7 +2229,8 @@ namespace MatrixFreeTools
       };
 
     data_cell.op_reinit = [](auto &phi, const unsigned batch) {
-      static_cast<FEEvalType &>(*phi[0]).reinit(batch);
+      if (phi.size() == 1)
+        static_cast<FEEvalType &>(*phi[0]).reinit(batch);
     };
 
     if (cell_operation)
@@ -2274,8 +2291,11 @@ namespace MatrixFreeTools
       };
 
     data_face.op_reinit = [](auto &phi, const unsigned batch) {
-      static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
-      static_cast<FEFaceEvalType &>(*phi[1]).reinit(batch);
+      if (phi.size() == 2)
+        {
+          static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
+          static_cast<FEFaceEvalType &>(*phi[1]).reinit(batch);
+        }
     };
 
     if (face_operation)
@@ -2314,7 +2334,8 @@ namespace MatrixFreeTools
     };
 
     data_boundary.op_reinit = [](auto &phi, const unsigned batch) {
-      static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
+      if (phi.size() == 1)
+        static_cast<FEFaceEvalType &>(*phi[0]).reinit(batch);
     };
 
     if (boundary_operation)

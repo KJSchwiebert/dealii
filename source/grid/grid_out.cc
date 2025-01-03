@@ -230,9 +230,9 @@ namespace GridOutFlags
   void
   EpsFlagsBase::parse_parameters(ParameterHandler &param)
   {
-    if (param.get("Size by") == std::string("width"))
+    if (param.get("Size by") == "width")
       size_type = width;
-    else if (param.get("Size by") == std::string("height"))
+    else if (param.get("Size by") == "height")
       size_type = height;
     size                     = param.get_integer("Size");
     line_width               = param.get_double("Line width");
@@ -344,7 +344,7 @@ namespace GridOutFlags
     param.declare_entry("Azimuth",
                         "30",
                         Patterns::Double(),
-                        "Azimuth of the viw point, that is, the angle "
+                        "Azimuth of the view point, that is, the angle "
                         "in the plane from the x-axis.");
     param.declare_entry("Elevation",
                         "30",
@@ -2139,7 +2139,13 @@ GridOut::write_svg(const Triangulation<2, 2> &tria, std::ostream &out) const
           double h;
 
           if (n != 1)
-            h = .6 - (index / (n - 1.)) * .6;
+            {
+              // The assert is a workaround for a compiler bug in ROCm 5.7 which
+              // evaluated index/(n-1) when n == 1 in debug mode. When adding
+              // the assert the ratio is not evaluated.
+              Assert((n - 1.) != 0., ExcInvalidState());
+              h = .6 - (index / (n - 1.)) * .6;
+            }
           else
             h = .6;
 

@@ -685,8 +685,8 @@ protected:
    * faces.
    */
   FEPointEvaluationBase(
-    NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
-    const FiniteElement<dim, spacedim>              &fe,
+    const NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
+    const FiniteElement<dim, spacedim>                    &fe,
     const unsigned int first_selected_component = 0,
     const bool         is_interior              = true);
 
@@ -772,6 +772,15 @@ public:
    */
   void
   submit_divergence(const Number &value, const unsigned int point_index);
+
+  /**
+   * Return the curl in real coordinates at the point with index
+   * `point_index` after a call to FEPointEvaluation::evaluate() with
+   * EvaluationFlags::gradients set. This functions only makes sense for a
+   * vector field with dim components and dim > 1.
+   */
+  Tensor<1, (dim == 2 ? 1 : dim), Number>
+  get_curl(const unsigned int point_index) const;
 
   /**
    * Return the Jacobian of the transformation on the current cell with the
@@ -1045,7 +1054,8 @@ protected:
    * Pointer to currently used mapping info (either on the fly or external
    * precomputed).
    */
-  ObserverPointer<NonMatching::MappingInfo<dim, spacedim, Number>> mapping_info;
+  ObserverPointer<const NonMatching::MappingInfo<dim, spacedim, Number>>
+    mapping_info;
 
   /**
    * The current cell index to access mapping data from mapping info.
@@ -1184,8 +1194,8 @@ public:
    * components starting from this parameter.
    */
   FEPointEvaluation(
-    NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
-    const FiniteElement<dim, spacedim>              &fe,
+    const NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
+    const FiniteElement<dim, spacedim>                    &fe,
     const unsigned int first_selected_component = 0);
 
   /**
@@ -1558,10 +1568,10 @@ public:
    * Constructor. Allows to select if interior or exterior face is selected.
    */
   FEFacePointEvaluation(
-    NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
-    const FiniteElement<dim, spacedim>              &fe,
-    const bool                                       is_interior = true,
-    const unsigned int first_selected_component                  = 0);
+    const NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
+    const FiniteElement<dim, spacedim>                    &fe,
+    const bool                                             is_interior = true,
+    const unsigned int first_selected_component                        = 0);
 
   /**
    * Reinitialize the evaluator to point to the correct precomputed mapping of
@@ -1845,10 +1855,10 @@ FEPointEvaluationBase<n_components_, dim, spacedim, Number>::
 template <int n_components_, int dim, int spacedim, typename Number>
 FEPointEvaluationBase<n_components_, dim, spacedim, Number>::
   FEPointEvaluationBase(
-    NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
-    const FiniteElement<dim, spacedim>              &fe,
-    const unsigned int                               first_selected_component,
-    const bool                                       is_interior)
+    const NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
+    const FiniteElement<dim, spacedim>                    &fe,
+    const unsigned int first_selected_component,
+    const bool         is_interior)
   : n_q_batches(numbers::invalid_unsigned_int)
   , n_q_points(numbers::invalid_unsigned_int)
   , n_q_points_scalar(numbers::invalid_unsigned_int)
@@ -2234,6 +2244,35 @@ FEPointEvaluationBase<n_components_, dim, spacedim, Number>::submit_divergence(
 
 
 template <int n_components_, int dim, int spacedim, typename Number>
+Tensor<1, (dim == 2 ? 1 : dim), Number>
+FEPointEvaluationBase<n_components_, dim, spacedim, Number>::get_curl(
+  const unsigned int point_index) const
+{
+  static_assert(
+    dim > 1 && n_components == dim,
+    "Only makes sense for a vector field with dim components and dim > 1");
+
+  const Tensor<2, dim, Number>            grad = get_gradient(point_index);
+  Tensor<1, (dim == 2 ? 1 : dim), Number> curl;
+  switch (dim)
+    {
+      case 2:
+        curl[0] = grad[1][0] - grad[0][1];
+        break;
+      case 3:
+        curl[0] = grad[2][1] - grad[1][2];
+        curl[1] = grad[0][2] - grad[2][0];
+        curl[2] = grad[1][0] - grad[0][1];
+        break;
+      default:
+        DEAL_II_NOT_IMPLEMENTED();
+    }
+  return curl;
+}
+
+
+
+template <int n_components_, int dim, int spacedim, typename Number>
 inline DerivativeForm<1, dim, spacedim, Number>
 FEPointEvaluationBase<n_components_, dim, spacedim, Number>::jacobian(
   const unsigned int point_index) const
@@ -2339,9 +2378,9 @@ FEPointEvaluationBase<n_components_, dim, spacedim, Number>::
 
 template <int n_components_, int dim, int spacedim, typename Number>
 FEPointEvaluation<n_components_, dim, spacedim, Number>::FEPointEvaluation(
-  NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
-  const FiniteElement<dim, spacedim>              &fe,
-  const unsigned int                               first_selected_component)
+  const NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
+  const FiniteElement<dim, spacedim>                    &fe,
+  const unsigned int first_selected_component)
   : FEPointEvaluationBase<n_components_, dim, spacedim, Number>(
       mapping_info,
       fe,
@@ -2401,7 +2440,7 @@ FEPointEvaluation<n_components_, dim, spacedim, Number>::reinit(
   AssertThrow(this->mapping_info_on_the_fly.get() != nullptr,
               ExcNotImplemented());
 
-  this->mapping_info->reinit(cell, unit_points);
+  this->mapping_info_on_the_fly->reinit(cell, unit_points);
   this->must_reinitialize_pointers = false;
 
   if (!this->fast_path)
@@ -3207,10 +3246,10 @@ FEPointEvaluation<n_components_, dim, spacedim, Number>::
 template <int n_components_, int dim, int spacedim, typename Number>
 FEFacePointEvaluation<n_components_, dim, spacedim, Number>::
   FEFacePointEvaluation(
-    NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
-    const FiniteElement<dim, spacedim>              &fe,
-    const bool                                       is_interior,
-    const unsigned int                               first_selected_component)
+    const NonMatching::MappingInfo<dim, spacedim, Number> &mapping_info,
+    const FiniteElement<dim, spacedim>                    &fe,
+    const bool                                             is_interior,
+    const unsigned int first_selected_component)
   : FEPointEvaluationBase<n_components_, dim, spacedim, Number>(
       mapping_info,
       fe,

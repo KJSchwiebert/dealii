@@ -12,8 +12,8 @@
 //
 // ------------------------------------------------------------------------
 
-#ifndef dealii_enable_ref_counting_by_observer_h
-#define dealii_enable_ref_counting_by_observer_h
+#ifndef dealii_enable_observer_pointer_h
+#define dealii_enable_observer_pointer_h
 
 
 #include <deal.II/base/config.h>
@@ -29,30 +29,43 @@
 
 DEAL_II_NAMESPACE_OPEN
 
+
+// Forward declaration
+template <typename T, typename P>
+class ObserverPointer;
+
+
 /**
- * Handling of subscriptions.
+ * This class supports the functioning of the ObserverPointer class.
  *
- * This class, as a base class, allows to keep track of other objects using a
- * specific object. It is used to avoid that pointers that point to an object of
- * a class derived from EnableObserverPointer are referenced after
- * that object has been invalidated. Here, invalidation is assumed to happen
- * when the object is moved from or destroyed. The mechanism works as follows:
- * The member function subscribe() accepts a pointer to a boolean that is
- * modified on invalidation. The object that owns this pointer (usually an
- * object of class type ObserverPointer) is then expected to check the state of
- * the boolean before trying to access this class.
+ * Used as a base class, this class allows the ObserverPointer class to register
+ * with an object that it is observing that object. As a consequence, the object
+ * can report an error when its destructor is called if there are still
+ * ObserverPointers pointing to it, since destroying the object would lead to
+ * dangling pointers that point to memory that's no longer valid.
  *
- * The utility of this class is even enhanced by providing identifying strings
- * to the functions subscribe() and unsubscribe(). These strings are represented
- * as <code>const char</code> pointers since the underlying buffer comes from
- * (and is managed by) the run-time type information system: more exactly, these
- * pointers are the result the function call <code>typeid(x).name()</code> where
- * <code>x</code> is some object. Therefore, the pointers provided to
- * subscribe() and to unsubscribe() must be the same. Strings with equal
- * contents will not be recognized to be the same. The handling in
- * ObserverPointer will take care of this.
- * The current subscribers to this class can be obtained by calling
- * list_subscribers().
+ * In actual practice, the mechanism works as follows: Assume you have an
+ * `ObserverPointer<X>` object that points objects of type `X` (where `X` is
+ * derived from EnableObserverPointer). When you write
+ * @code
+ *   ObserverPointer<X> ptr;
+ *   X                  object;
+ *   ptr = &x;
+ * @endcode
+ * then `ObserverPointer::operator=()` called in the last line of the code above
+ * will call the EnableObserverPointer::subscribe() function (of the class
+ * documented here) with arguments that allow both
+ * sides to track each other. If `object` goes out of scope while `ptr` is still
+ * pointing to it, this would create a dangling pointer, and the destructor of
+ * `X` (i.e., actually the destructor of the EnableObserverPointer base class of
+ * `X`) will abort the program with an error.
+ *
+ * In practice, when such an error happens, it is often difficult to tell
+ * *which* pointer is still pointing to the `object` that is being destroyed. To
+ * this end, ObserverPointer can also pass a string to the subscribe() member
+ * function that identifies which observer is still alive. This string is passed
+ * to the ObserverPointer object upon construction and is user-defined so that
+ * code developed can give names to their observer pointers.
  *
  * @ingroup memory
  */
@@ -101,31 +114,10 @@ public:
   operator=(EnableObserverPointer &&) noexcept;
 
   /**
-   * @name EnableObserverPointer functionality
+   * @name Querying the observer pointers an object has.
    *
-   * Classes derived from EnableObserverPointer provide a facility
-   * to subscribe to this object. This is mostly used by the ObserverPointer
-   * class.
    * @{
    */
-
-  /**
-   * Subscribes a user of the object by storing the pointer @p validity. The
-   * subscriber may be identified by text supplied as @p identifier.
-   */
-  void
-  subscribe(std::atomic<bool> *const validity,
-            const std::string       &identifier = "") const;
-
-  /**
-   * Unsubscribes a user from the object.
-   *
-   * @note The @p identifier and the @p validity pointer must be the same as
-   * the one supplied to subscribe().
-   */
-  void
-  unsubscribe(std::atomic<bool> *const validity,
-              const std::string       &identifier = "") const;
 
   /**
    * Return the present number of subscriptions to this object. This allows to
@@ -250,6 +242,40 @@ private:
   mutable const std::type_info *object_info;
 
   /**
+   * A mutex used to ensure data consistency when accessing the `mutable`
+   * members of this class. This lock is used in the subscribe() and
+   * unsubscribe() functions, as well as in `list_subscribers()`.
+   */
+  static std::mutex mutex;
+
+  /**
+   * @name EnableObserverPointer functionality
+   *
+   * Classes derived from EnableObserverPointer provide a facility
+   * to subscribe to this object. This is mostly used by the ObserverPointer
+   * class.
+   * @{
+   */
+
+  /**
+   * Subscribes a user of the object by storing the pointer @p validity. The
+   * subscriber may be identified by text supplied as @p identifier.
+   */
+  void
+  subscribe(std::atomic<bool> *const validity,
+            const std::string       &identifier = "") const;
+
+  /**
+   * Unsubscribes a user from the object.
+   *
+   * @note The @p identifier and the @p validity pointer must be the same as
+   * the one supplied to subscribe().
+   */
+  void
+  unsubscribe(std::atomic<bool> *const validity,
+              const std::string       &identifier = "") const;
+
+  /**
    * Check that there are no objects subscribing to this object. If this check
    * passes then it is safe to destroy the current object. It this check fails
    * then this function will either abort or print an error message to deallog
@@ -265,12 +291,10 @@ private:
   void
   check_no_subscribers() const noexcept;
 
-  /**
-   * A mutex used to ensure data consistency when accessing the `mutable`
-   * members of this class. This lock is used in the subscribe() and
-   * unsubscribe() functions, as well as in `list_subscribers()`.
-   */
-  static std::mutex mutex;
+  template <typename, typename>
+  friend class ObserverPointer;
+
+  /** @} */
 };
 
 

@@ -18,7 +18,7 @@
 
 #include <deal.II/base/config.h>
 
-#include <deal.II/base/enable_ref_counting_by_observer_pointer.h>
+#include <deal.II/base/enable_observer_pointer.h>
 #include <deal.II/base/exceptions.h>
 #include <deal.II/base/function_time.h>
 #include <deal.II/base/point.h>
@@ -992,6 +992,20 @@ public:
     const double initial_time = 0.0);
 
   /**
+   * Constructor for functions of which you only know the values.
+   *
+   * The resulting function will have a number of components equal @p n_components.
+   * A call to the FunctionFromFunctionObject::gradient()
+   * method will trigger an exception, unless you first call the
+   * set_function_gradients() method.
+   */
+  explicit FunctionFromFunctionObjects(
+    const std::function<RangeNumberType(const Point<dim> &, const unsigned int)>
+                      &values,
+    const unsigned int n_components,
+    const double       initial_time = 0.0);
+
+  /**
    * Constructor for functions of which you know both the values and the
    * gradients.
    *
@@ -1052,14 +1066,14 @@ private:
   /**
    * The actual function values.
    */
-  std::vector<std::function<RangeNumberType(const Point<dim> &)>>
+  std::function<RangeNumberType(const Point<dim> &, const unsigned int)>
     function_values;
 
   /**
    * The actual function gradients.
    */
-  std::vector<
-    std::function<Tensor<1, dim, RangeNumberType>(const Point<dim> &)>>
+  std::function<Tensor<1, dim, RangeNumberType>(const Point<dim> &,
+                                                const unsigned int)>
     function_gradients;
 };
 

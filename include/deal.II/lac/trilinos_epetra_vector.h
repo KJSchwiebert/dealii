@@ -20,7 +20,6 @@
 
 #ifdef DEAL_II_WITH_TRILINOS
 
-#  include <deal.II/base/enable_ref_counting_by_observer_pointer.h>
 #  include <deal.II/base/index_set.h>
 #  include <deal.II/base/mpi_stub.h>
 
@@ -222,8 +221,7 @@ namespace LinearAlgebra
      * @ingroup TrilinosWrappers
      * @ingroup Vectors
      */
-    class Vector : public ReadVector<VectorTraits::value_type>,
-                   public EnableObserverPointer
+    class Vector : public ReadVector<VectorTraits::value_type>
     {
     public:
       using value_type      = VectorTraits::value_type;
@@ -281,7 +279,7 @@ namespace LinearAlgebra
       virtual void
       extract_subvector_to(
         const ArrayView<const types::global_dof_index> &indices,
-        ArrayView<double> &elements) const override;
+        const ArrayView<double> &elements) const override;
 
       /**
        * Copy function. This function takes a Vector and copies all the

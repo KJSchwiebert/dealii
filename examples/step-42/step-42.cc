@@ -260,7 +260,7 @@ namespace Step42
     stress_strain_tensor_linearized += stress_strain_tensor_kappa;
   }
 
-  // <h3>Equation data: boundary forces, boundary values, obstacles</h3>
+  // @sect3{Equation data: boundary forces, boundary values, obstacles}
   //
   // The following should be relatively standard. We need classes for
   // the boundary forcing term (which we here choose to be zero)
@@ -447,9 +447,7 @@ namespace Step42
       , ny(0)
     {
       std::ifstream f(name);
-      AssertThrow(f,
-                  ExcMessage(std::string("Can't read from file <") + name +
-                             ">!"));
+      AssertThrow(f, ExcMessage("Can't read from file <" + name + ">!"));
 
       std::string temp;
       f >> temp >> nx >> ny;
@@ -1239,7 +1237,7 @@ namespace Step42
                 {
                   // At each quadrature point (i.e., at each support point of a
                   // degree of freedom located on the contact boundary), we then
-                  // ask whether it is part of the z-displacement degrees of
+                  // ask whether it is part of the $z$-displacement degrees of
                   // freedom and if we haven't encountered this degree of
                   // freedom yet (which can happen for those on the edges
                   // between faces), we need to evaluate the gap between the
@@ -1250,12 +1248,12 @@ namespace Step42
                   // to the correct value, and add the index to the IndexSet
                   // object that stores which degree of freedom is part of the
                   // contact:
-                  const unsigned int component =
-                    fe.face_system_to_component_index(q_point).first;
+                  const FEValuesExtractors::Scalar z_displacement(2);
 
                   const unsigned int index_z = dof_indices[q_point];
 
-                  if ((component == 2) && (dof_touched[index_z] == false))
+                  if (fe.shape_function_belongs_to(q_point, z_displacement) &&
+                      (dof_touched[index_z] == false))
                     {
                       dof_touched[index_z] = true;
 

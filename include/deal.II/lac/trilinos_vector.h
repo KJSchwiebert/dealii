@@ -19,7 +19,6 @@
 #include <deal.II/base/config.h>
 
 #ifdef DEAL_II_WITH_TRILINOS
-#  include <deal.II/base/enable_ref_counting_by_observer_pointer.h>
 #  include <deal.II/base/index_set.h>
 #  include <deal.II/base/mpi_stub.h>
 #  include <deal.II/base/partitioner.h>
@@ -401,8 +400,7 @@ namespace TrilinosWrappers
      * @ingroup TrilinosWrappers
      * @ingroup Vectors
      */
-    class Vector : public EnableObserverPointer,
-                   public ReadVector<TrilinosScalar>
+    class Vector : public ReadVector<TrilinosScalar>
     {
     public:
       /**
@@ -559,11 +557,10 @@ namespace TrilinosWrappers
        * Reinit functionality. This function destroys the old vector content
        * and generates a new one based on the input partitioning.  The flag
        * <tt>omit_zeroing_entries</tt> determines whether the vector should be
-       * filled with zero (false). If the flag is set to <tt>true</tt>, the
-       * vector entries are in an unspecified state and the user has to set
-       * all elements. In the current implementation, this method still sets
-       * the entries to zero, but this might change between releases without
-       * notification.
+       * filled with zeros (if set to <tt>false</tt>) or left in an unspecified
+       * state (if the flag is set to <tt>true</tt>). In the current
+       * implementation, this method still sets the entries to zero, but this
+       * might change between releases without notification.
        *
        * Depending on whether the @p parallel_partitioning argument uniquely
        * subdivides elements among processors or not, the resulting vector may
@@ -1032,8 +1029,9 @@ namespace TrilinosWrappers
        * Extract a range of elements all at once.
        */
       virtual void
-      extract_subvector_to(const ArrayView<const size_type> &indices,
-                           ArrayView<TrilinosScalar> &elements) const override;
+      extract_subvector_to(
+        const ArrayView<const size_type> &indices,
+        const ArrayView<TrilinosScalar>  &elements) const override;
 
       /**
        * Instead of getting individual elements of a vector via operator(),
@@ -1582,8 +1580,9 @@ namespace TrilinosWrappers
 
 
     inline void
-    Vector::extract_subvector_to(const ArrayView<const size_type> &indices,
-                                 ArrayView<TrilinosScalar> &elements) const
+    Vector::extract_subvector_to(
+      const ArrayView<const size_type> &indices,
+      const ArrayView<TrilinosScalar>  &elements) const
     {
       AssertDimension(indices.size(), elements.size());
       for (unsigned int i = 0; i < indices.size(); ++i)

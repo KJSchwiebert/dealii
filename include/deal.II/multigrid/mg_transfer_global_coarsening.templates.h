@@ -18,7 +18,7 @@
 
 #include <deal.II/base/config.h>
 
-#include <deal.II/base/mpi_compute_index_owner_internal.h>
+#include <deal.II/base/memory_space.h>
 #include <deal.II/base/mpi_consensus_algorithms.h>
 
 #include <deal.II/distributed/fully_distributed_tria.h>
@@ -851,29 +851,16 @@ namespace internal
                 is_dst_remote_potentially_relevant.nth_index_in_set(i));
         }
 
-      // determine owner of remote cells
-      std::vector<unsigned int> is_dst_remote_owners(
-        is_dst_remote.n_elements());
+      // determine owners of remote cells
+      const auto [is_dst_remote_owners, targets_with_indexset] =
+        Utilities::MPI::compute_index_owner_and_requesters(is_dst_locally_owned,
+                                                           is_dst_remote,
+                                                           communicator);
 
-      Utilities::MPI::internal::ComputeIndexOwner::ConsensusAlgorithmsPayload
-        process(is_dst_locally_owned,
-                is_dst_remote,
-                communicator,
-                is_dst_remote_owners,
-                true);
-
-      Utilities::MPI::ConsensusAlgorithms::Selector<
-        std::vector<
-          std::pair<types::global_cell_index, types::global_cell_index>>,
-        std::vector<unsigned int>>
-        consensus_algorithm;
-      consensus_algorithm.run(process, communicator);
 
       this->is_dst_locally_owned = is_dst_locally_owned;
       this->is_dst_remote        = is_dst_remote;
       this->is_src_locally_owned = is_src_locally_owned;
-
-      const auto targets_with_indexset = process.get_requesters();
 
 #ifndef DEAL_II_WITH_MPI
       Assert(targets_with_indexset.empty(), ExcInternalError());
@@ -1485,13 +1472,14 @@ namespace internal
     /**
      * Compute weights.
      */
-    template <int dim, typename Number>
+    template <int dim, typename Number, typename MemorySpace>
     static void
     setup_weights(
       const dealii::AffineConstraints<Number> &constraints_fine,
-      MGTwoLevelTransfer<dim, LinearAlgebra::distributed::Vector<Number>>
-                &transfer,
-      const bool is_feq)
+      MGTwoLevelTransfer<
+        dim,
+        LinearAlgebra::distributed::Vector<Number, MemorySpace>> &transfer,
+      const bool                                                  is_feq)
     {
       if (transfer.fine_element_is_continuous == false)
         return; // nothing to do
@@ -1627,7 +1615,7 @@ namespace internal
 
 
 
-    template <int dim, typename Number>
+    template <int dim, typename Number, typename MemorySpace>
     static void
     reinit_geometric_transfer(
       const DoFHandler<dim>                   &dof_handler_fine,
@@ -1636,8 +1624,9 @@ namespace internal
       const dealii::AffineConstraints<Number> &constraints_coarse,
       const unsigned int                       mg_level_fine,
       const unsigned int                       mg_level_coarse,
-      MGTwoLevelTransfer<dim, LinearAlgebra::distributed::Vector<Number>>
-        &transfer)
+      MGTwoLevelTransfer<
+        dim,
+        LinearAlgebra::distributed::Vector<Number, MemorySpace>> &transfer)
     {
       Assert((mg_level_fine == numbers::invalid_unsigned_int &&
               mg_level_coarse == numbers::invalid_unsigned_int) ||
@@ -2743,10 +2732,9 @@ namespace internal
     {
       const auto &vector_partitioner = vec.get_partitioner();
 
-      ArrayView<Number> ghost_array(
-        const_cast<LinearAlgebra::distributed::Vector<Number> &>(vec).begin() +
-          vector_partitioner->locally_owned_size(),
-        vector_partitioner->n_ghost_indices());
+      ArrayView<Number> ghost_array(const_cast<VectorType &>(vec).begin() +
+                                      vector_partitioner->locally_owned_size(),
+                                    vector_partitioner->n_ghost_indices());
 
       for (const auto &my_ghosts :
            embedded_partitioner->ghost_indices_within_larger_ghost_set())
@@ -4269,8 +4257,8 @@ MGTwoLevelTransferBase<VectorType>::zero_out_ghost_values(
 
 
 
-template <int dim, typename Number>
-MGTransferMF<dim, Number>::MGTransferMF()
+template <int dim, typename Number, typename MemorySpace>
+MGTransferMF<dim, Number, MemorySpace>::MGTransferMF()
 {
   this->transfer.clear();
   this->internal_transfer.clear();
@@ -4278,8 +4266,8 @@ MGTransferMF<dim, Number>::MGTransferMF()
 
 
 
-template <int dim, typename Number>
-MGTransferMF<dim, Number>::MGTransferMF(
+template <int dim, typename Number, typename MemorySpace>
+MGTransferMF<dim, Number, MemorySpace>::MGTransferMF(
   const MGConstrainedDoFs &mg_constrained_dofs)
 {
   this->transfer.clear();
@@ -4289,9 +4277,9 @@ MGTransferMF<dim, Number>::MGTransferMF(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::initialize_constraints(
+MGTransferMF<dim, Number, MemorySpace>::initialize_constraints(
   const MGConstrainedDoFs &mg_constrained_dofs)
 {
   this->mg_constrained_dofs = &mg_constrained_dofs;
@@ -4299,9 +4287,9 @@ MGTransferMF<dim, Number>::initialize_constraints(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::initialize_internal_transfer(
+MGTransferMF<dim, Number, MemorySpace>::initialize_internal_transfer(
   const DoFHandler<dim>                          &dof_handler,
   const ObserverPointer<const MGConstrainedDoFs> &mg_constrained_dofs)
 {
@@ -4331,41 +4319,48 @@ MGTransferMF<dim, Number>::initialize_internal_transfer(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 std::pair<const DoFHandler<dim> *, unsigned int>
-MGTransferMF<dim, Number>::get_dof_handler_fine() const
+MGTransferMF<dim, Number, MemorySpace>::get_dof_handler_fine() const
 {
   if (this->transfer.n_levels() <= 1)
     // single level: the information cannot be retrieved
     return {nullptr, numbers::invalid_unsigned_int};
 
-  if (const auto t = dynamic_cast<
-        const MGTwoLevelTransfer<dim,
-                                 LinearAlgebra::distributed::Vector<Number>> *>(
+  if (const auto t = dynamic_cast<const MGTwoLevelTransfer<
+        dim,
+        LinearAlgebra::distributed::Vector<Number, MemorySpace>> *>(
         this->transfer[this->transfer.max_level()].get()))
     {
       return {t->dof_handler_fine, t->mg_level_fine};
     }
-  else if (const auto t = dynamic_cast<const MGTwoLevelTransferNonNested<
-             dim,
-             LinearAlgebra::distributed::Vector<Number>> *>(
-             this->transfer[this->transfer.max_level()].get()))
+
+  if constexpr (std::is_same_v<MemorySpace, ::dealii::MemorySpace::Host>)
     {
-      return {t->dof_handler_fine, t->mg_level_fine};
+      // MGTwoLevelTransferNonNested transfer is only instantiated for Host
+      // memory:
+      if (const auto t = dynamic_cast<const MGTwoLevelTransferNonNested<
+            dim,
+            LinearAlgebra::distributed::Vector<Number, MemorySpace>> *>(
+            this->transfer[this->transfer.max_level()].get()))
+        {
+          return {t->dof_handler_fine, t->mg_level_fine};
+        }
     }
-  else
-    {
-      DEAL_II_NOT_IMPLEMENTED();
-      return {nullptr, numbers::invalid_unsigned_int};
-    }
+
+  {
+    DEAL_II_NOT_IMPLEMENTED();
+    return {nullptr, numbers::invalid_unsigned_int};
+  }
 }
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::fill_and_communicate_copy_indices_global_coarsening(
-  const DoFHandler<dim> &dof_handler_out)
+MGTransferMF<dim, Number, MemorySpace>::
+  fill_and_communicate_copy_indices_global_coarsening(
+    const DoFHandler<dim> &dof_handler_out)
 {
   const auto dof_handler_and_level_in = get_dof_handler_fine();
   const auto dof_handler_in           = dof_handler_and_level_in.first;
@@ -4462,9 +4457,9 @@ MGTransferMF<dim, Number>::fill_and_communicate_copy_indices_global_coarsening(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::build(
+MGTransferMF<dim, Number, MemorySpace>::build(
   const std::vector<std::shared_ptr<const Utilities::MPI::Partitioner>>
     &external_partitioners)
 {
@@ -4503,9 +4498,9 @@ MGTransferMF<dim, Number>::build(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::build(
+MGTransferMF<dim, Number, MemorySpace>::build(
   const std::function<void(const unsigned int, VectorType &)>
     &initialize_dof_vector)
 {
@@ -4520,7 +4515,8 @@ MGTransferMF<dim, Number>::build(
 
       for (unsigned int l = min_level; l <= max_level; ++l)
         {
-          LinearAlgebra::distributed::Vector<typename VectorType::value_type>
+          LinearAlgebra::distributed::Vector<typename VectorType::value_type,
+                                             MemorySpace>
             vector;
           initialize_dof_vector(l, vector);
           external_partitioners[l - min_level] = vector.get_partitioner();
@@ -4536,9 +4532,9 @@ MGTransferMF<dim, Number>::build(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::build(
+MGTransferMF<dim, Number, MemorySpace>::build(
   const DoFHandler<dim> &dof_handler,
   const std::vector<std::shared_ptr<const Utilities::MPI::Partitioner>>
     &external_partitioners)
@@ -4563,9 +4559,9 @@ MGTransferMF<dim, Number>::build(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::build(
+MGTransferMF<dim, Number, MemorySpace>::build(
   const DoFHandler<dim> &dof_handler,
   const std::function<void(const unsigned int, VectorType &)>
     &initialize_dof_vector)
@@ -4590,11 +4586,11 @@ MGTransferMF<dim, Number>::build(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::prolongate(const unsigned int to_level,
-                                      VectorType        &dst,
-                                      const VectorType  &src) const
+MGTransferMF<dim, Number, MemorySpace>::prolongate(const unsigned int to_level,
+                                                   VectorType        &dst,
+                                                   const VectorType  &src) const
 {
   dst = Number(0.0);
   prolongate_and_add(to_level, dst, src);
@@ -4602,31 +4598,33 @@ MGTransferMF<dim, Number>::prolongate(const unsigned int to_level,
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::prolongate_and_add(const unsigned int to_level,
-                                              VectorType        &dst,
-                                              const VectorType  &src) const
+MGTransferMF<dim, Number, MemorySpace>::prolongate_and_add(
+  const unsigned int to_level,
+  VectorType        &dst,
+  const VectorType  &src) const
 {
   this->transfer[to_level]->prolongate_and_add(dst, src);
 }
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::restrict_and_add(const unsigned int from_level,
-                                            VectorType        &dst,
-                                            const VectorType  &src) const
+MGTransferMF<dim, Number, MemorySpace>::restrict_and_add(
+  const unsigned int from_level,
+  VectorType        &dst,
+  const VectorType  &src) const
 {
   this->transfer[from_level]->restrict_and_add(dst, src);
 }
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 void
-MGTransferMF<dim, Number>::assert_dof_handler(
+MGTransferMF<dim, Number, MemorySpace>::assert_dof_handler(
   const DoFHandler<dim> &dof_handler_out) const
 {
 #ifndef DEBUG
@@ -4713,9 +4711,9 @@ MGTransferMF<dim, Number>::assert_dof_handler(
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 std::size_t
-MGTransferMF<dim, Number>::memory_consumption() const
+MGTransferMF<dim, Number, MemorySpace>::memory_consumption() const
 {
   std::size_t size = 0;
 
@@ -4730,26 +4728,26 @@ MGTransferMF<dim, Number>::memory_consumption() const
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 inline unsigned int
-MGTransferMF<dim, Number>::min_level() const
+MGTransferMF<dim, Number, MemorySpace>::min_level() const
 {
   return transfer.min_level();
 }
 
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 inline unsigned int
-MGTransferMF<dim, Number>::max_level() const
+MGTransferMF<dim, Number, MemorySpace>::max_level() const
 {
   return transfer.max_level();
 }
 
 
-template <int dim, typename Number>
+template <int dim, typename Number, typename MemorySpace>
 inline void
-MGTransferMF<dim, Number>::clear()
+MGTransferMF<dim, Number, MemorySpace>::clear()
 {
   MGLevelGlobalTransfer<VectorType>::clear();
 
@@ -4762,8 +4760,12 @@ MGTransferMF<dim, Number>::clear()
 
 template <int dim, typename Number>
 MGTransferBlockMF<dim, Number>::MGTransferBlockMF(
-  const MGTransferMF<dim, Number> &transfer_operator)
-  : MGTransferBlockMatrixFreeBase<dim, Number, MGTransferMF<dim, Number>>(true)
+  const MGTransferMF<dim, Number, ::dealii::MemorySpace::Host>
+    &transfer_operator)
+  : MGTransferBlockMatrixFreeBase<
+      dim,
+      Number,
+      MGTransferMF<dim, Number, ::dealii::MemorySpace::Host>>(true)
 {
   this->transfer_operators = {&transfer_operator};
 }
@@ -4773,7 +4775,10 @@ MGTransferBlockMF<dim, Number>::MGTransferBlockMF(
 template <int dim, typename Number>
 MGTransferBlockMF<dim, Number>::MGTransferBlockMF(
   const MGConstrainedDoFs &mg_constrained_dofs)
-  : MGTransferBlockMatrixFreeBase<dim, Number, MGTransferMF<dim, Number>>(true)
+  : MGTransferBlockMatrixFreeBase<
+      dim,
+      Number,
+      MGTransferMF<dim, Number, ::dealii::MemorySpace::Host>>(true)
 {
   initialize_constraints(mg_constrained_dofs);
 }
@@ -4783,7 +4788,10 @@ MGTransferBlockMF<dim, Number>::MGTransferBlockMF(
 template <int dim, typename Number>
 MGTransferBlockMF<dim, Number>::MGTransferBlockMF(
   const std::vector<MGConstrainedDoFs> &mg_constrained_dofs)
-  : MGTransferBlockMatrixFreeBase<dim, Number, MGTransferMF<dim, Number>>(false)
+  : MGTransferBlockMatrixFreeBase<
+      dim,
+      Number,
+      MGTransferMF<dim, Number, ::dealii::MemorySpace::Host>>(false)
 {
   initialize_constraints(mg_constrained_dofs);
 }
@@ -4857,7 +4865,7 @@ MGTransferBlockMF<dim, Number>::build(
 
 
 template <int dim, typename Number>
-const MGTransferMF<dim, Number> &
+const MGTransferMF<dim, Number, ::dealii::MemorySpace::Host> &
 MGTransferBlockMF<dim, Number>::get_matrix_free_transfer(
   const unsigned int b) const
 {

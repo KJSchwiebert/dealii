@@ -162,18 +162,18 @@ namespace parallel
        decltype(*std::declval<OutputIterator>()),
        std::invoke_result_t<Function,
                             decltype(*std::declval<InputIterator>())>>))
-  void transform(const InputIterator &begin_in,
-                 const InputIterator &end_in,
-                 OutputIterator       out,
-                 const Function      &function,
-                 const unsigned int   grainsize)
+  DEAL_II_DEPRECATED_EARLY void transform(const InputIterator &begin_in,
+                                          const InputIterator &end_in,
+                                          OutputIterator       out,
+                                          const Function      &function,
+                                          const unsigned int   grainsize)
   {
 #ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
 
-    for (OutputIterator in = begin_in; in != end_in;)
+    for (InputIterator in = begin_in; in != end_in;)
       *out++ = function(*in++);
 #else
     using Iterators     = std::tuple<InputIterator, OutputIterator>;
@@ -237,19 +237,19 @@ namespace parallel
        std::invoke_result_t<Function,
                             decltype(*std::declval<InputIterator1>()),
                             decltype(*std::declval<InputIterator2>())>>))
-  void transform(const InputIterator1 &begin_in1,
-                 const InputIterator1 &end_in1,
-                 InputIterator2        in2,
-                 OutputIterator        out,
-                 const Function       &function,
-                 const unsigned int    grainsize)
+  DEAL_II_DEPRECATED_EARLY void transform(const InputIterator1 &begin_in1,
+                                          const InputIterator1 &end_in1,
+                                          InputIterator2        in2,
+                                          OutputIterator        out,
+                                          const Function       &function,
+                                          const unsigned int    grainsize)
   {
 #ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
 
-    for (OutputIterator in1 = begin_in1; in1 != end_in1;)
+    for (InputIterator1 in1 = begin_in1; in1 != end_in1;)
       *out++ = function(*in1++, *in2++);
 #else
     using Iterators =
@@ -319,20 +319,20 @@ namespace parallel
                             decltype(*std::declval<InputIterator1>()),
                             decltype(*std::declval<InputIterator2>()),
                             decltype(*std::declval<InputIterator3>())>>))
-  void transform(const InputIterator1 &begin_in1,
-                 const InputIterator1 &end_in1,
-                 InputIterator2        in2,
-                 InputIterator3        in3,
-                 OutputIterator        out,
-                 const Function       &function,
-                 const unsigned int    grainsize)
+  DEAL_II_DEPRECATED_EARLY void transform(const InputIterator1 &begin_in1,
+                                          const InputIterator1 &end_in1,
+                                          InputIterator2        in2,
+                                          InputIterator3        in3,
+                                          OutputIterator        out,
+                                          const Function       &function,
+                                          const unsigned int    grainsize)
   {
 #ifndef DEAL_II_WITH_TBB
     // make sure we don't get compiler
     // warnings about unused arguments
     (void)grainsize;
 
-    for (OutputIterator in1 = begin_in1; in1 != end_in1;)
+    for (InputIterator1 in1 = begin_in1; in1 != end_in1;)
       *out++ = function(*in1++, *in2++, *in3++);
 #else
     using Iterators = std::

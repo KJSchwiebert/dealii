@@ -20,7 +20,6 @@
 
 #ifdef DEAL_II_WITH_PETSC
 
-#  include <deal.II/base/enable_ref_counting_by_observer_pointer.h>
 #  include <deal.II/base/index_set.h>
 
 #  include <deal.II/lac/exceptions.h>
@@ -249,8 +248,7 @@ namespace PETScWrappers
    *
    * @ingroup PETScWrappers
    */
-  class VectorBase : public ReadVector<PetscScalar>,
-                     public EnableObserverPointer
+  class VectorBase : public ReadVector<PetscScalar>
   {
   public:
     /**
@@ -489,7 +487,7 @@ namespace PETScWrappers
     virtual void
     extract_subvector_to(
       const ArrayView<const types::global_dof_index> &indices,
-      ArrayView<PetscScalar>                         &elements) const override;
+      const ArrayView<PetscScalar>                   &elements) const override;
 
     /**
      * Instead of getting individual elements of a vector via operator(),
@@ -1193,7 +1191,7 @@ namespace PETScWrappers
   inline void
   VectorBase::extract_subvector_to(
     const ArrayView<const types::global_dof_index> &indices,
-    ArrayView<PetscScalar>                         &elements) const
+    const ArrayView<PetscScalar>                   &elements) const
   {
     AssertDimension(indices.size(), elements.size());
     extract_subvector_to(indices.begin(), indices.end(), elements.begin());
