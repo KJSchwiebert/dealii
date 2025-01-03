@@ -753,6 +753,7 @@ FE_SimplexP<dim, spacedim>::FE_SimplexP(const unsigned int degree)
     for (unsigned int i = 0; i < this->n_dofs_per_line(); ++i)
       this->adjust_line_dof_index_for_line_orientation_table[i] =
         this->n_dofs_per_line() - 1 - i - i;
+
   // We do not support multiple DoFs per quad yet
   Assert(degree <= 3, ExcNotImplemented());
 }
@@ -837,76 +838,6 @@ FE_SimplexP<dim, spacedim>::compare_for_domination(
 
   DEAL_II_NOT_IMPLEMENTED();
   return FiniteElementDomination::neither_element_dominates;
-}
-
-
-
-template <int dim, int spacedim>
-unsigned int
-FE_SimplexP<dim, spacedim>::face_to_cell_index(
-  const unsigned int  face_index,
-  const unsigned int  face,
-  const unsigned char combined_orientation) const
-{
-  AssertIndexRange(face_index, this->n_dofs_per_face(face));
-  AssertIndexRange(face, this->reference_cell().n_faces());
-
-  // The below logic might work for degree > 3, but this is not implemented
-  // elsewhere.
-  Assert(this->degree <= 3, ExcNotImplemented());
-
-  // Pass off to the base class for the simple cases.
-  if (this->degree < 3)
-    this->FiniteElement<dim, spacedim>::face_to_cell_index(
-      face_index, face, combined_orientation);
-
-  // we need to distinguish between DoFs on vertices, lines and (in 3d) quads.
-  // do so in a sequence of if-else statements
-  if (face_index < this->get_first_face_line_index(face))
-    // DoF is on a vertex
-    {
-      // get the number of the vertex on the face that corresponds to this DoF,
-      // along with the number of the DoF on this vertex
-      const unsigned int face_vertex = face_index / this->n_dofs_per_vertex();
-      const unsigned int dof_index_on_vertex =
-        face_index % this->n_dofs_per_vertex();
-
-      // then get the number of this vertex on the cell and translate
-      // this to a DoF number on the cell
-      return (this->reference_cell().face_to_cell_vertices(
-                face, face_vertex, combined_orientation) *
-                this->n_dofs_per_vertex() +
-              dof_index_on_vertex);
-    }
-  else if (face_index < this->get_first_face_quad_index(face))
-    // DoF is on a face
-    {
-      // do the same kind of translation as before. we need to only consider
-      // DoFs on the lines, i.e., ignoring those on the vertices
-      const unsigned int index =
-        face_index - this->get_first_face_line_index(face);
-
-      const unsigned int face_line         = index / this->n_dofs_per_line();
-      const unsigned int dof_index_on_line = index % this->n_dofs_per_line();
-
-      return (this->get_first_line_index() +
-              this->reference_cell().face_to_cell_lines(face,
-                                                        face_line,
-                                                        combined_orientation) *
-                this->n_dofs_per_line() +
-              dof_index_on_line);
-    }
-  else
-    // DoF is on a quad
-    {
-      Assert(dim >= 3, ExcInternalError());
-
-      // ignore vertex and line dofs
-      const unsigned int index =
-        face_index - this->get_first_face_quad_index(face);
-
-      return (this->get_first_quad_index(face) + index);
-    }
 }
 
 
