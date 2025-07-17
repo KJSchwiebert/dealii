@@ -81,7 +81,11 @@ namespace TrilinosWrappers
       , compressed(true)
       , has_ghosts(false)
       , vector(new Epetra_FEVector(
-          Epetra_Map(0, 0, 0, Utilities::Trilinos::comm_self())))
+          Epetra_Map(0,
+                     0,
+                     0,
+                     *Utilities::Trilinos::duplicate_communicator(
+                       Utilities::Trilinos::comm_self()))))
     {}
 
 
